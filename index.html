@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Personal Money Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#1C2321;
+    --paper:#F6F3EA;
+    --paper-2:#EFEADC;
+    --line:#D8D2BF;
+    --green:#2F5D50;
+    --green-soft:#DCE8E2;
+    --clay:#C2643B;
+    --gold:#B9975B;
+    --muted:#7A7568;
+    --radius:2px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  h1,h2,h3{
+    font-family:'Source Serif 4', serif;
+    font-weight:600;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+
+  /* ===== Layout shell ===== */
+  .wrap{
+    max-width:1040px;
+    margin:0 auto;
+    padding:28px 20px 80px;
+  }
+
+  header.masthead{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    border-bottom:3px solid var(--ink);
+    padding-bottom:14px;
+    margin-bottom:6px;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  header.masthead h1{
+    font-size:30px;
+  }
+  header.masthead .date-stamp{
+    font-size:12px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+  }
+  .sub-rule{
+    display:flex;
+    justify-content:space-between;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    color:var(--muted);
+    padding:8px 0 24px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:28px;
+  }
+
+  /* ===== Connection bar ===== */
+  .connect-bar{
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    padding:14px 16px;
+    margin-bottom:28px;
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .connect-bar input[type="text"]{
+    flex:1;
+    min-width:220px;
+    font-family:inherit;
+    font-size:13px;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--ink);
+  }
+  .connect-bar .status-dot{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--clay);
+    flex-shrink:0;
+  }
+  .connect-bar .status-dot.live{background:var(--green);}
+  .connect-bar small{color:var(--muted); width:100%;}
+
+  button{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    font-weight:600;
+    padding:10px 16px;
+    background:var(--ink);
+    color:var(--paper);
+    border:1px solid var(--ink);
+    cursor:pointer;
+    transition:opacity .15s ease;
+  }
+  button:hover{opacity:0.85;}
+  button.ghost{
+    background:transparent;
+    color:var(--ink);
+  }
+  button.danger{
+    background:var(--clay);
+    border-color:var(--clay);
+  }
+
+  /* ===== Summary row ===== */
+  .summary-row{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:0;
+    border:1px solid var(--ink);
+    margin-bottom:32px;
+  }
+  .summary-cell{
+    padding:18px 16px;
+    border-right:1px solid var(--ink);
+  }
+  .summary-cell:last-child{border-right:none;}
+  .summary-cell .label{
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:0.1em;
+    color:var(--muted);
+    display:block;
+    margin-bottom:8px;
+  }
+  .summary-cell .value{
+    font-family:'Source Serif 4', serif;
+    font-size:24px;
+    font-weight:600;
+  }
+  .summary-cell.spend .value{color:var(--clay);}
+  .summary-cell.save .value{color:var(--green);}
+  .summary-cell.invest .value{color:var(--gold);}
+
+  @media (max-width:640px){
+    .summary-row{grid-template-columns:repeat(2,1fr);}
+    .summary-cell:nth-child(2){border-right:none;}
+  }
+
+  /* ===== Section headers ===== */
+  .section-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    margin:40px 0 16px;
+    border-bottom:1px solid var(--ink);
+    padding-bottom:8px;
+  }
+  .section-head h2{font-size:18px;}
+  .section-head .hint{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;}
+
+  /* ===== Two-column grid for charts ===== */
+  .chart-grid{
+    display:grid;
+    grid-template-columns:1.3fr 1fr;
+    gap:24px;
+    margin-bottom:8px;
+  }
+  @media (max-width:800px){
+    .chart-grid{grid-template-columns:1fr;}
+  }
+  .panel{
+    border:1px solid var(--line);
+    background:var(--paper-2);
+    padding:18px;
+  }
+  .panel h3{
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--muted);
+    margin-bottom:14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:600;
+  }
+  .panel canvas{max-height:280px;}
+
+  /* ===== Category breakdown bar (signature element) ===== */
+  .receipt-bar{
+    display:flex;
+    width:100%;
+    height:34px;
+    border:1px solid var(--ink);
+    overflow:hidden;
+    margin-bottom:16px;
+  }
+  .receipt-bar .seg{
+    height:100%;
+    transition:opacity .15s ease;
+  }
+  .receipt-bar .seg:hover{opacity:0.7;}
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px 18px;
+  }
+  .legend-item{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    font-size:12px;
+  }
+  .legend-swatch{width:10px;height:10px;flex-shrink:0;}
+  .legend-item .amt{color:var(--muted);}
+
+  /* ===== Form ===== */
+  .entry-form{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr 1fr auto;
+    gap:10px;
+    align-items:end;
+    border:1px solid var(--line);
+    background:var(--paper-2);
+    padding:18px;
+  }
+  @media (max-width:800px){
+    .entry-form{grid-template-columns:1fr 1fr;}
+  }
+  .field label{
+    display:block;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--muted);
+    margin-bottom:6px;
+  }
+  .field input, .field select{
+    width:100%;
+    font-family:inherit;
+    font-size:13px;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    background:var(--paper);
+    color:var(--ink);
+  }
+  .field input:focus, .field select:focus, .connect-bar input:focus{
+    outline:2px solid var(--green);
+    outline-offset:1px;
+  }
+
+  /* ===== Ledger table ===== */
+  table.ledger{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:8px;
+    font-size:13px;
+  }
+  table.ledger thead th{
+    text-align:left;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--muted);
+    border-bottom:1px solid var(--ink);
+    padding:8px 10px;
+    font-weight:600;
+  }
+  table.ledger td{
+    padding:9px 10px;
+    border-bottom:1px solid var(--line);
+  }
+  table.ledger tbody tr:hover{background:var(--paper-2);}
+  table.ledger td.amount{text-align:right; font-weight:500;}
+  table.ledger td.amount.neg{color:var(--clay);}
+  table.ledger td.amount.pos{color:var(--green);}
+  table.ledger .tag{
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    padding:2px 7px;
+    border:1px solid var(--line);
+    color:var(--muted);
+    display:inline-block;
+  }
+  table.ledger .del-btn{
+    background:none;
+    border:none;
+    color:var(--muted);
+    font-size:11px;
+    cursor:pointer;
+    text-decoration:underline;
+    padding:0;
+    text-transform:none;
+    letter-spacing:0;
+  }
+  .empty-state{
+    text-align:center;
+    padding:40px 20px;
+    color:var(--muted);
+  }
+
+  footer{
+    margin-top:50px;
+    padding-top:16px;
+    border-top:1px solid var(--line);
+    font-size:11px;
+    color:var(--muted);
+    text-align:center;
+  }
+  footer a{color:var(--green);}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <h1>Ledger</h1>
+    <span class="date-stamp" id="todayStamp"></span>
+  </header>
+  <div class="sub-rule">
+    <span>Personal money tracker</span>
+    <span id="monthRangeLabel">All entries</span>
+  </div>
+
+  <div class="connect-bar">
+    <span class="status-dot" id="statusDot"></span>
+    <input type="text" id="scriptUrl" placeholder="Paste your Google Apps Script Web App URL here">
+    <button id="connectBtn">Connect</button>
+    <button class="ghost" id="refreshBtn">Refresh</button>
+    <small id="connectHint">Not connected yet — paste the URL from your Apps Script deployment. Your data stays in your own Google Sheet; this page only talks to your script.</small>
+  </div>
+
+  <div class="summary-row">
+    <div class="summary-cell spend">
+      <span class="label">Total spent</span>
+      <span class="value" id="sumSpend">₹0</span>
+    </div>
+    <div class="summary-cell">
+      <span class="label">Total income</span>
+      <span class="value" id="sumIncome">₹0</span>
+    </div>
+    <div class="summary-cell save">
+      <span class="label">In FD</span>
+      <span class="value" id="sumFD">₹0</span>
+    </div>
+    <div class="summary-cell invest">
+      <span class="label">Invested</span>
+      <span class="value" id="sumInvest">₹0</span>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>Where it went</h2>
+    <span class="hint" id="categoryTotal">Category breakdown</span>
+  </div>
+  <div class="receipt-bar" id="receiptBar"></div>
+  <div class="legend" id="receiptLegend"></div>
+
+  <div class="chart-grid" style="margin-top:32px;">
+    <div class="panel">
+      <h3>Spend by category</h3>
+      <canvas id="catChart"></canvas>
+    </div>
+    <div class="panel">
+      <h3>Month over month</h3>
+      <canvas id="trendChart"></canvas>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>Add an entry</h2>
+    <span class="hint">Writes straight to your sheet</span>
+  </div>
+  <div class="entry-form">
+    <div class="field">
+      <label for="f-date">Date</label>
+      <input type="date" id="f-date">
+    </div>
+    <div class="field">
+      <label for="f-type">Type</label>
+      <select id="f-type">
+        <option value="expense">Expense</option>
+        <option value="income">Income / Salary</option>
+        <option value="investment">Investment</option>
+        <option value="fd">FD</option>
+        <option value="interest">Interest</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="f-category">Category</label>
+      <input type="text" id="f-category" placeholder="Food, EMI, Gift...">
+    </div>
+    <div class="field">
+      <label for="f-amount">Amount (₹)</label>
+      <input type="number" id="f-amount" placeholder="0" step="0.01">
+    </div>
+    <button id="addBtn">Add entry</button>
+  </div>
+
+  <div class="section-head">
+    <h2>All entries</h2>
+    <span class="hint" id="rowCount">0 rows</span>
+  </div>
+  <table class="ledger">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Type</th>
+        <th>Category</th>
+        <th>Note</th>
+        <th style="text-align:right;">Amount</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="ledgerBody">
+      <tr><td colspan="6"><div class="empty-state">No entries yet. Connect your sheet, then add your first entry above.</div></td></tr>
+    </tbody>
+  </table>
+
+  <footer>
+    Data lives in your own Google Sheet — nothing is stored on any third-party server.<br>
+    <a href="#" id="howToLink">How to set up the Sheet & script</a>
+  </footer>
+</div>
+
+<script>
+const PALETTE = ['#2F5D50','#C2643B','#B9975B','#5B7C99','#8C5E58','#6E7B5A','#A1715E','#3F6B6E','#9C8458','#7A5C6E'];
+
+let SCRIPT_URL = localStorage.getItem('ledgerScriptUrl') || '';
+let entries = [];
+let catChartInstance = null;
+let trendChartInstance = null;
+
+document.getElementById('todayStamp').textContent = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' });
+document.getElementById('f-date').valueAsDate = new Date();
+
+if (SCRIPT_URL) {
+  document.getElementById('scriptUrl').value = SCRIPT_URL;
+  loadData();
+}
+
+document.getElementById('connectBtn').addEventListener('click', () => {
+  const url = document.getElementById('scriptUrl').value.trim();
+  if (!url) return;
+  SCRIPT_URL = url;
+  localStorage.setItem('ledgerScriptUrl', url);
+  loadData();
+});
+
+document.getElementById('refreshBtn').addEventListener('click', loadData);
+document.getElementById('addBtn').addEventListener('click', addEntry);
+
+document.getElementById('howToLink').addEventListener('click', (e) => {
+  e.preventDefault();
+  alert(
+    "SETUP (one-time, ~5 min):\n\n" +
+    "1. Create a new Google Sheet.\n" +
+    "2. Open Extensions > Apps Script.\n" +
+    "3. Delete the default code, paste in the AppsScript.gs code provided with this dashboard.\n" +
+    "4. Click Deploy > New deployment > Web app.\n" +
+    "   - Execute as: Me\n" +
+    "   - Who has access: Only myself (or 'Anyone with the link' if you want to skip the Google login prompt — keep the URL private)\n" +
+    "5. Authorize when prompted, then copy the Web App URL.\n" +
+    "6. Paste that URL into the box at the top of this page and click Connect.\n\n" +
+    "That's it — entries you add here are written straight into your Sheet, and you can also type rows directly into the Sheet itself."
+  );
+});
+
+async function loadData() {
+  if (!SCRIPT_URL) {
+    setStatus(false);
+    return;
+  }
+  setStatus(null);
+  try {
+    const res = await fetch(SCRIPT_URL);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Failed to load');
+    entries = json.data.map(d => ({
+      id: d.id,
+      date: d.date,
+      type: (d.type || 'expense').toLowerCase(),
+      category: d.category || 'Uncategorized',
+      amount: Number(d.amount) || 0,
+      note: d.note || ''
+    }));
+    setStatus(true);
+    document.getElementById('connectHint').textContent = 'Connected — ' + entries.length + ' entries loaded from your sheet.';
+    render();
+  } catch (err) {
+    setStatus(false);
+    document.getElementById('connectHint').textContent = 'Could not load: ' + err.message + '. Check the URL and that the deployment is active.';
+  }
+}
+
+function setStatus(ok) {
+  const dot = document.getElementById('statusDot');
+  dot.classList.remove('live');
+  if (ok === true) dot.classList.add('live');
+}
+
+async function addEntry() {
+  const date = document.getElementById('f-date').value;
+  const type = document.getElementById('f-type').value;
+  const category = document.getElementById('f-category').value.trim() || 'Uncategorized';
+  const amount = parseFloat(document.getElementById('f-amount').value);
+
+  if (!date || !amount) {
+    alert('Please fill in at least date and amount.');
+    return;
+  }
+  if (!SCRIPT_URL) {
+    alert('Connect your Google Sheet first using the box at the top.');
+    return;
+  }
+
+  const btn = document.getElementById('addBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'add', date, type, category, amount, note: '' })
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Failed to save');
+
+    document.getElementById('f-category').value = '';
+    document.getElementById('f-amount').value = '';
+    await loadData();
+  } catch (err) {
+    alert('Could not save: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add entry';
+  }
+}
+
+async function deleteEntry(id) {
+  if (!confirm('Delete this entry?')) return;
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'delete', id })
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Failed to delete');
+    await loadData();
+  } catch (err) {
+    alert('Could not delete: ' + err.message);
+  }
+}
+
+function fmt(n) {
+  return '₹' + Math.round(n).toLocaleString('en-IN');
+}
+
+function render() {
+  document.getElementById('rowCount').textContent = entries.length + ' row' + (entries.length === 1 ? '' : 's');
+
+  const spend = entries.filter(e => e.type === 'expense').reduce((s,e) => s + e.amount, 0);
+  const income = entries.filter(e => e.type === 'income').reduce((s,e) => s + e.amount, 0);
+  const fd = entries.filter(e => e.type === 'fd').reduce((s,e) => s + e.amount, 0);
+  const invest = entries.filter(e => e.type === 'investment').reduce((s,e) => s + e.amount, 0);
+
+  document.getElementById('sumSpend').textContent = fmt(spend);
+  document.getElementById('sumIncome').textContent = fmt(income);
+  document.getElementById('sumFD').textContent = fmt(fd);
+  document.getElementById('sumInvest').textContent = fmt(invest);
+
+  renderReceiptBar(spend);
+  renderCatChart();
+  renderTrendChart();
+  renderTable();
+}
+
+function categoryTotals() {
+  const map = {};
+  entries.filter(e => e.type === 'expense').forEach(e => {
+    map[e.category] = (map[e.category] || 0) + e.amount;
+  });
+  return Object.entries(map).sort((a,b) => b[1]-a[1]);
+}
+
+function renderReceiptBar(totalSpend) {
+  const bar = document.getElementById('receiptBar');
+  const legend = document.getElementById('receiptLegend');
+  bar.innerHTML = '';
+  legend.innerHTML = '';
+  const cats = categoryTotals();
+  document.getElementById('categoryTotal').textContent = cats.length + ' categories · ' + fmt(totalSpend) + ' total';
+
+  if (cats.length === 0 || totalSpend === 0) {
+    bar.style.background = 'var(--paper-2)';
+    legend.innerHTML = '<span style="color:var(--muted); font-size:12px;">No expenses logged yet.</span>';
+    return;
+  }
+  bar.style.background = '';
+
+  cats.forEach(([cat, amt], i) => {
+    const pct = (amt / totalSpend) * 100;
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    seg.style.width = pct + '%';
+    seg.style.background = PALETTE[i % PALETTE.length];
+    seg.title = cat + ': ' + fmt(amt);
+    bar.appendChild(seg);
+
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = '<span class="legend-swatch" style="background:' + PALETTE[i % PALETTE.length] + '"></span>' +
+      '<span>' + cat + '</span><span class="amt">' + fmt(amt) + '</span>';
+    legend.appendChild(item);
+  });
+}
+
+function renderCatChart() {
+  const cats = categoryTotals();
+  const ctx = document.getElementById('catChart');
+  if (catChartInstance) catChartInstance.destroy();
+  catChartInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: cats.map(c => c[0]),
+      datasets: [{
+        data: cats.map(c => c[1]),
+        backgroundColor: cats.map((_, i) => PALETTE[i % PALETTE.length]),
+        borderColor: '#F6F3EA',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { position: 'right', labels: { font: { family: 'IBM Plex Mono', size: 11 }, color: '#1C2321', boxWidth: 10 } }
+      },
+      cutout: '60%'
+    }
+  });
+}
+
+function renderTrendChart() {
+  const months = {};
+  entries.forEach(e => {
+    if (!e.date) return;
+    const m = String(e.date).slice(0,7); // YYYY-MM
+    if (!months[m]) months[m] = { spend:0, income:0 };
+    if (e.type === 'expense') months[m].spend += e.amount;
+    if (e.type === 'income') months[m].income += e.amount;
+  });
+  const sortedMonths = Object.keys(months).sort();
+  const ctx = document.getElementById('trendChart');
+  if (trendChartInstance) trendChartInstance.destroy();
+  trendChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: sortedMonths,
+      datasets: [
+        {
+          label: 'Spend',
+          data: sortedMonths.map(m => months[m].spend),
+          borderColor: '#C2643B',
+          backgroundColor: 'rgba(194,100,59,0.1)',
+          tension: 0.25,
+          fill: true
+        },
+        {
+          label: 'Income',
+          data: sortedMonths.map(m => months[m].income),
+          borderColor: '#2F5D50',
+          backgroundColor: 'rgba(47,93,80,0.08)',
+          tension: 0.25,
+          fill: true
+        }
+      ]
+    },
+    options: {
+      plugins: { legend: { labels: { font: { family: 'IBM Plex Mono', size: 11 }, color: '#1C2321' } } },
+      scales: {
+        x: { ticks: { font: { family: 'IBM Plex Mono', size: 10 }, color: '#7A7568' }, grid: { display:false } },
+        y: { ticks: { font: { family: 'IBM Plex Mono', size: 10 }, color: '#7A7568' }, grid: { color:'#D8D2BF' } }
+      }
+    }
+  });
+}
+
+function renderTable() {
+  const body = document.getElementById('ledgerBody');
+  body.innerHTML = '';
+  if (entries.length === 0) {
+    body.innerHTML = '<tr><td colspan="6"><div class="empty-state">No entries yet. Connect your sheet, then add your first entry above.</div></td></tr>';
+    return;
+  }
+  const sorted = [...entries].sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+  sorted.forEach(e => {
+    const isNeg = e.type === 'expense';
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + (e.date || '—') + '</td>' +
+      '<td><span class="tag">' + e.type + '</span></td>' +
+      '<td>' + e.category + '</td>' +
+      '<td>' + (e.note || '—') + '</td>' +
+      '<td class="amount ' + (isNeg ? 'neg' : 'pos') + '">' + (isNeg ? '−' : '+') + fmt(e.amount) + '</td>' +
+      '<td><button class="del-btn" data-id="' + e.id + '">remove</button></td>';
+    body.appendChild(tr);
+  });
+  body.querySelectorAll('.del-btn').forEach(btn => {
+    btn.addEventListener('click', () => deleteEntry(btn.dataset.id));
+  });
+}
+
+render();
+</script>
+
+</body>
+</html>
